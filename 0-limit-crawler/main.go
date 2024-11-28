@@ -12,11 +12,23 @@ package main
 import (
 	"fmt"
 	"sync"
+	"time"
 )
+
+type safeMap struct {
+	v  map[string]bool
+	mu sync.Mutex
+}
+
+var sp *safeMap
+
+func init() {
+	sp = &safeMap{v: map[string]bool{}}
+}
 
 // Crawl uses `fetcher` from the `mockfetcher.go` file to imitate a
 // real crawler. It crawls until the maximum depth has reached.
-func Crawl(url string, depth int, wg *sync.WaitGroup) {
+func Crawl(url string, depth int, wg *sync.WaitGroup, limiter <-chan time.Time) {
 	defer wg.Done()
 
 	if depth <= 0 {
@@ -31,18 +43,36 @@ func Crawl(url string, depth int, wg *sync.WaitGroup) {
 
 	fmt.Printf("found: %s %q\n", url, body)
 
-	wg.Add(len(urls))
+	//wg.Add(len(urls))
+
 	for _, u := range urls {
 		// Do not remove the `go` keyword, as Crawl() must be
 		// called concurrently
-		go Crawl(u, depth-1, wg)
+
+		sp.mu.Lock()
+		if !sp.v[u] {
+			sp.v[u] = true
+			sp.mu.Unlock()
+			wg.Add(1)
+			<-limiter
+			go Crawl(u, depth-1, wg, limiter)
+		} else {
+			sp.mu.Unlock()
+		}
+
 	}
+	//fmt.Println("parsed all")
 }
 
 func main() {
 	var wg sync.WaitGroup
-
+	startTime := time.Now()
 	wg.Add(1)
-	Crawl("http://golang.org/", 4, &wg)
+	if !sp.v["http://golang.org/"] {
+		sp.v["http://golang.org/"] = true
+	}
+	limiter := time.Tick(time.Second)
+	Crawl("http://golang.org/", 4, &wg, limiter)
 	wg.Wait()
+	fmt.Println(time.Since(startTime))
 }
