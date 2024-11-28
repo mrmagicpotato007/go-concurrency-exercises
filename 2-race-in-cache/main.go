@@ -38,7 +38,7 @@ type KeyStoreCache struct {
 
 //when rw mutex is used during rlock readers are allowed writes are not allowed
 //when its lock both writes and reads are blocked.
-
+//learning if the whole struct is getting used concurrently then pages,load might also be getting written. 
 // New creates a new KeyStoreCache
 func New(load KeyStoreCacheLoader) *KeyStoreCache {
 	return &KeyStoreCache{
