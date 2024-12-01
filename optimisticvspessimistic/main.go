@@ -9,7 +9,16 @@ import (
 
 var counter int64 = 1
 
-var atomiCounter atomic.Int64
+type atomicCounter struct {
+	counter int
+	mu      sync.RWMutex
+}
+
+var ac *atomicCounter
+
+func init() {
+	ac = &atomicCounter{counter: 0}
+}
 
 func incrementCounter(goRoutineNumber int, wg *sync.WaitGroup) {
 	// Decrements the counter when the goroutine completes
@@ -23,7 +32,7 @@ func incrementCounter(goRoutineNumber int, wg *sync.WaitGroup) {
 	result := atomic.CompareAndSwapInt64(&counter, oldCounterValue, newCounterValue)
 
 	if !result {
-		fmt.Printf("%d operation failed\n", goRoutineNumber)
+		//fmt.Printf("%d operation failed\n", goRoutineNumber)
 	} else {
 		// fmt.Println("operation success")
 	}
@@ -48,10 +57,12 @@ func main() {
 		wg.Add(1)
 		go func(wg *sync.WaitGroup) {
 			defer wg.Done()
-			atomiCounter.Add(1)
+			ac.mu.Lock()
+			defer ac.mu.Unlock()
+			ac.counter++
 		}(&wg)
 	}
 	wg.Wait()
 	fmt.Printf("time taken for pessimistic locking %s \n", time.Since(startTime).String())
-	fmt.Printf("atomic counter value %d \n", atomiCounter.Load())
+	fmt.Printf("atomic counter value %d \n", ac.counter)
 }
